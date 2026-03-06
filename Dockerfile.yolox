@@ -26,18 +26,6 @@ RUN git clone https://github.com/Megvii-BaseDetection/YOLOX.git
 
 WORKDIR /workspace/YOLOX
 
-# This is SHA256 hash of yolox_s.pth, weight file from official github repo release 0.1.1rc0 (68.7 MB) 
-ENV YOLOX_S_SHA256="f55ded7181e1b0c13285c56e7790b8f0e8f8db590fe4edb37f0b7f345c913a30"
-
-# Download pretrained weights + SHA256 integrity check using the ENV var
-RUN mkdir -p weights && \
-    wget https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.pth -O weights/yolox_s.pth --no-verbose && \
-    # Verify hash using the ENV variable (fail build on mismatch)
-    echo "${YOLOX_S_SHA256} weights/yolox_s.pth" | sha256sum -c - || \
-    (echo "ERROR: SHA256 mismatch for yolox_s.pth! Expected: ${YOLOX_S_SHA256}" && exit 1) && \
-    ls -lh weights/yolox_s.pth && \
-    echo "Weights integrity verified (SHA256 matches ${YOLOX_S_SHA256})"
-
 # Replace origin requirement.txt file with fixed version to avoid version issue
 RUN tee requirements.txt << EOF
 ## Core YOLOX deps – pinned to your working env
@@ -66,6 +54,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install YOLOX editable (use --no-build-isolation to avoid torch import issues during build)
 RUN pip install -v -e . --no-build-isolation
+
+# This is SHA256 hash of yolox_s.pth, weight file from official github repo release 0.1.1rc0 (68.7 MB) 
+ENV YOLOX_S_SHA256="f55ded7181e1b0c13285c56e7790b8f0e8f8db590fe4edb37f0b7f345c913a30"
+
+# Download pretrained weights + SHA256 integrity check using the ENV var
+RUN mkdir -p weights && \
+    wget https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.pth -O weights/yolox_s.pth --no-verbose && \
+    # Verify hash using the ENV variable (fail build on mismatch)
+    echo "${YOLOX_S_SHA256} weights/yolox_s.pth" | sha256sum -c - || \
+    (echo "ERROR: SHA256 mismatch for yolox_s.pth! Expected: ${YOLOX_S_SHA256}" && exit 1) && \
+    ls -lh weights/yolox_s.pth && \
+    echo "Weights integrity verified (SHA256 matches ${YOLOX_S_SHA256})"
 
 # quick test that weights load
 RUN python -c "import torch; ckpt = torch.load('weights/yolox_s.pth', map_location='cpu'); print('Weights loaded OK, keys:', len(ckpt.keys()))"

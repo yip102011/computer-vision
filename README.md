@@ -60,6 +60,11 @@ Results saved as JSON to `<output_dir>/<image_name>.json`:
 
 ## Docker Usage
 
+start new container
+```bash
+docker run -it -d --runtime nvidia --gpus all --volume ./mnt/:/workspace/mnt/ --name yolox ghcr.io/yip102011/yolox:latest
+```
+
 Copy script to container and execute:
 
 ```bash
