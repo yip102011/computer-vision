@@ -52,13 +52,15 @@ class Predictor(object):
         img, _ = self.preproc(img, None, self.test_size)
         img = torch.from_numpy(img).unsqueeze(0).float().to(self.device)
 
+        start_time = time.time()
         with torch.no_grad():
             outputs = self.model(img)
             outputs = postprocess(
                 outputs, self.num_classes, self.confthre,
                 self.nmsthre, class_agnostic=True
             )
-        return outputs, {"file_name": os.path.basename(img_path), "width": width, "height": height, "ratio": ratio}
+        inference_time = time.time() - start_time
+        return outputs, {"file_name": os.path.basename(img_path), "width": width, "height": height, "ratio": ratio, "inference_time": inference_time}
 
     def extract_results(self, output, img_info):
         ratio = img_info["ratio"]
@@ -110,9 +112,19 @@ def main(exp, args):
 
     predictor = Predictor(model, exp, COCO_CLASSES, device)
 
-    # Process single image
+    # Process single image - run twice, output second result (warmed up)
     logger.info(f"Processing: {args.path}")
+    
+    # Warm-up inference
+    logger.info("Running warm-up inference...")
+    outputs_warmup, _ = predictor.inference(args.path)
+    logger.info(f"Warm-up time: {_.get('inference_time', 0):.4f}s")
+    
+    # Timed inference (second run)
+    logger.info("Running timed inference...")
     outputs, img_info = predictor.inference(args.path)
+    logger.info(f"Timed inference: {img_info['inference_time']:.4f}s")
+    
     results = predictor.extract_results(outputs[0], img_info)
 
     # Prepare output
@@ -120,6 +132,7 @@ def main(exp, args):
         "image": img_info["file_name"],
         "width": int(img_info["width"]),
         "height": int(img_info["height"]),
+        "inference_time_sec": round(img_info["inference_time"], 4),
         "detections": results
     }
 

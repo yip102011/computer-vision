@@ -50,13 +50,15 @@ class Predictor(object):
         img, _ = self.preproc(img, None, self.test_size)
         img = torch.from_numpy(img).unsqueeze(0).float()  # CPU only
 
+        start_time = time.time()
         with torch.no_grad():
             outputs = self.model(img)
             outputs = postprocess(
                 outputs, self.num_classes, self.confthre,
                 self.nmsthre, class_agnostic=True
             )
-        return outputs, {"file_name": os.path.basename(img_path), "width": width, "height": height, "ratio": ratio}
+        inference_time = time.time() - start_time
+        return outputs, {"file_name": os.path.basename(img_path), "width": width, "height": height, "ratio": ratio, "inference_time": inference_time}
 
     def extract_results(self, output, img_info):
         ratio = img_info["ratio"]
@@ -114,6 +116,7 @@ def main(exp, args):
         "image": img_info["file_name"],
         "width": int(img_info["width"]),
         "height": int(img_info["height"]),
+        "inference_time_sec": round(img_info["inference_time"], 4),
         "detections": results
     }
 
