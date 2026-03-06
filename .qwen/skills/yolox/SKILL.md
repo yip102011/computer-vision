@@ -95,3 +95,8 @@ Person, bicycle, car, motorcycle, airplane, bus, train, truck, boat, traffic lig
 3. Use `--tsize` for consistent input sizing
 4. Monitor `inference_time_sec` in JSON output for performance
 5. Mount volumes for persistent output storage
+
+## Important Rules
+- **NEVER modify any code in the YOLOX git submodule** (`YOLOX/` directory)
+- Create custom scripts in the project root, not inside the submodule
+- The submodule is a third-party dependency and should remain unchanged
