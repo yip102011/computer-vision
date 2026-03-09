@@ -2,13 +2,12 @@
 # YOLOX Docker (GPU) with small weights yolox_s.pth
 # Base: PyTorch 2.4 + CUDA 12.4
 # ==============================
-FROM pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime
+FROM pytorch/pytorch:2.9.1-cuda12.6-cudnn9-runtime
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     build-essential \
-    libgl1-mesa-glx \
     libglib2.0-0 \
     ffmpeg \
     libsm6 \
@@ -50,7 +49,7 @@ Pillow==10.2.0
 EOF
 
 # Install Python Dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt --no-build-isolation 
 
 # Install YOLOX editable (use --no-build-isolation to avoid torch import issues during build)
 RUN pip install -v -e . --no-build-isolation

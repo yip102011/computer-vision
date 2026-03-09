@@ -20,7 +20,7 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
 
 def make_parser():
-    parser = argparse.ArgumentParser("YOLOX Demo - CPU Single Image JSON Output")
+    parser = argparse.ArgumentParser("YOLOX Demo - GPU Single Image JSON Output")
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
     parser.add_argument("--path", default="./assets/dog.jpg", help="path to single image")
     parser.add_argument("-f", "--exp_file", default=None, type=str, help="experiment description file")
@@ -28,12 +28,13 @@ def make_parser():
     parser.add_argument("--conf", default=0.3, type=float, help="confidence threshold")
     parser.add_argument("--nms", default=0.3, type=float, help="NMS threshold")
     parser.add_argument("--tsize", default=None, type=int, help="test image size")
+    parser.add_argument("--device", default="cuda", type=str, help="device to use (cuda or cpu)")
     parser.add_argument("-o", "--output_dir", default="./YOLOX_outputs", help="output directory")
     return parser
 
 
 class Predictor(object):
-    def __init__(self, model, exp, cls_names=COCO_CLASSES):
+    def __init__(self, model, exp, cls_names=COCO_CLASSES, device="cuda"):
         self.model = model
         self.cls_names = cls_names
         self.num_classes = exp.num_classes
@@ -41,6 +42,7 @@ class Predictor(object):
         self.nmsthre = exp.nmsthre
         self.test_size = exp.test_size
         self.preproc = ValTransform(legacy=False)
+        self.device = device
 
     def inference(self, img_path):
         img = cv2.imread(img_path)
@@ -48,7 +50,7 @@ class Predictor(object):
         ratio = min(self.test_size[0] / height, self.test_size[1] / width)
 
         img, _ = self.preproc(img, None, self.test_size)
-        img = torch.from_numpy(img).unsqueeze(0).float()  # CPU only
+        img = torch.from_numpy(img).unsqueeze(0).float().to(self.device)
 
         start_time = time.time()
         with torch.no_grad():
@@ -91,24 +93,40 @@ def main(exp, args):
     if args.tsize is not None:
         exp.test_size = (args.tsize, args.tsize)
 
-    # CPU-only model setup
+    # GPU model setup
+    if args.device == "gpu":
+        args.device = "cuda"
+    device = args.device if torch.cuda.is_available() else "cpu"
+    logger.info(f"Using device: {device}")
+    
     model = exp.get_model()
     model.eval()
+    model = model.to(device)
 
     # Load checkpoint
     ckpt_file = args.ckpt or os.path.join(exp.output_dir, "best_ckpt.pth")
     logger.info(f"Loading checkpoint from {ckpt_file}")
-    ckpt = torch.load(ckpt_file, map_location="cpu")
+    ckpt = torch.load(ckpt_file, map_location=device)
     model.load_state_dict(ckpt["model"])
     logger.info("Checkpoint loaded.")
 
     logger.info(f"Model Summary: {get_model_info(model, exp.test_size)}")
 
-    predictor = Predictor(model, exp, COCO_CLASSES)
+    predictor = Predictor(model, exp, COCO_CLASSES, device)
 
-    # Process single image
+    # Process single image - run twice, output second result (warmed up)
     logger.info(f"Processing: {args.path}")
+    
+    # Warm-up inference
+    logger.info("Running warm-up inference...")
+    outputs_warmup, _ = predictor.inference(args.path)
+    logger.info(f"Warm-up time: {_.get('inference_time', 0):.4f}s")
+    
+    # Timed inference (second run)
+    logger.info("Running timed inference...")
     outputs, img_info = predictor.inference(args.path)
+    logger.info(f"Timed inference: {img_info['inference_time']:.4f}s")
+    
     results = predictor.extract_results(outputs[0], img_info)
 
     # Prepare output
@@ -124,10 +142,10 @@ def main(exp, args):
     os.makedirs(args.output_dir, exist_ok=True)
     json_name = os.path.splitext(os.path.basename(args.path))[0] + ".json"
     output_path = os.path.join(args.output_dir, json_name)
-    
+
     with open(output_path, 'w') as f:
         json.dump(output_data, f, indent=2)
-    
+
     logger.info(f"✓ Saved results to {output_path}")
     logger.info(f"✓ Detected {len(results)} objects:")
     for det in results:

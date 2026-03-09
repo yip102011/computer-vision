@@ -56,6 +56,7 @@ Thumbs.db
 
 # Docker
 .docker/
+mnt/
 
 # Qwen settings (keep .qwen/settings.json for MCP config)
 .qwen/QWEN.md
